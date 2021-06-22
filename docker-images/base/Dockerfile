@@ -15,11 +15,11 @@ ENV TINI_SHA256_ARM64=7c5463f55393985ee22357d976758aaaecd08defb3c5294d3537320181
 
 RUN set -ex; \
     if [[ ${TARGETPLATFORM} = "linux/arm64" ]]; then \
-        curl -ks -L https://repo.phenix.carrefour.com/common/tini/tini-arm64.v0.18.0 -o /usr/bin/tini; \
-        #echo "${TINI_SHA256_ARM64} */usr/bin/tini" | sha256sum -c; \
+        curl -s -L https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-arm64 -o /usr/bin/tini; \
+        echo "${TINI_SHA256_ARM64} */usr/bin/tini" | sha256sum -c; \
         chmod +x /usr/bin/tini; \
     else \
-        curl -ks -L https://repo.phenix.carrefour.com/common/tini/tini-amd64.v0.18.0 -o /usr/bin/tini; \
-        #echo "${TINI_SHA256_AMD64} */usr/bin/tini" | sha256sum -c; \
+        curl -s -L https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini -o /usr/bin/tini; \
+        echo "${TINI_SHA256_AMD64} */usr/bin/tini" | sha256sum -c; \
         chmod +x /usr/bin/tini; \
     fi
