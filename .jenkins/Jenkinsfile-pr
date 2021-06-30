@@ -3,7 +3,7 @@
 def lib
 // Currently the loadbalancer service is not working on minikube, same for network policies
 def DEFAULT_EXCLUDED_GROUPS = "loadbalancer,networkpolicies"
-def env.ghprbPullId = ""
+ghprbPullId = ""
 
 pipeline {
     agent {
