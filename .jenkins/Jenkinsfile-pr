@@ -54,9 +54,8 @@ pipeline {
                 script {
                     if (env.BRANCH_NAME.startsWith('PR-')) {
                         def prNum = env.BRANCH_NAME.replace(/^PR-/, '')
-                        Println("PRNb= ${prNum}")
+                        println("PRNb= ${prNum}")
                     }
-                    
                 }
             }
         }
