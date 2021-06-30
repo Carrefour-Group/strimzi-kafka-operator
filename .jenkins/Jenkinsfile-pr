@@ -58,7 +58,7 @@ pipeline {
                         ghprbPullId = (env.BRANCH_NAME.tokenize( '-' ))[1]
                         println("PRNb= ${ghprbPullId}")
                     } else {
-                        currentBuild.result = 'SUCCESS'
+                        currentBuild.result = 'ABORTED'
                         println("Not a PR, so nothing to do")
                         break
                     }
