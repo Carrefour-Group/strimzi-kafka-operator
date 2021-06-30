@@ -54,12 +54,13 @@ pipeline {
             steps {
                 script {
                     if (env.BRANCH_NAME.startsWith('PR-')) {
-                        ghprbPullId = env.BRANCH_NAME.replace(/^PR-/, '')
+                        //ghprbPullId = env.BRANCH_NAME.replace(/^PR-/, '')
+                        ghprbPullId = (env.BRANCH_NAME.tokenize( '-' ))[1]
                         println("PRNb= ${ghprbPullId}")
                     } else {
                         currentBuild.result = 'SUCCESS'
                         println("Not a PR, so nothing to do")
-                        return
+                        break
                     }
                 }
             }
