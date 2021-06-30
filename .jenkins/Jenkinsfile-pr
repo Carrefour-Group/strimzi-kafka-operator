@@ -49,6 +49,13 @@ pipeline {
                 checkout scm
             }
         }
+        stage('TEST PR NUMBER') {
+            steps {
+                script {
+                    Println("PRNb= ${env.CHANGE_ID}")
+                }
+            }
+        }
         stage('load jenkins.groovy') {
             steps {
                 script {
