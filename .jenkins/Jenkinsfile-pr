@@ -58,6 +58,7 @@ pipeline {
                         println("PRNb= ${ghprbPullId}")
                     } else {
                         currentBuild.result = 'SUCCESS'
+                        println("Not a PR, so nothing to do")
                         return
                     }
                 }
