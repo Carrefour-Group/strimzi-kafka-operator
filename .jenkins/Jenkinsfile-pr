@@ -225,20 +225,21 @@ pipeline {
                             sh(script: """
                                 docker tag ${env.DOCKER_REGISTRY}/strimzi/test-client:pr-kafka-2.7.0 quay.io/strimzi/test-client:latest-kafka-2.7.0
                                 minikube image load quay.io/strimzi/test-client:latest-kafka-2.7.0
+                                
                                 docker pull strimzi/kafka-bridge:0.19.0
                                 docker tag strimzi/kafka-bridge:0.19.0 quay.io/strimzi/kafka-bridge:0.19.0
                                 docker tag strimzi/kafka-bridge:0.19.0 ${env.DOCKER_REGISTRY}/strimzi/kafka-bridge:0.19.0
                                 minikube image load ${env.DOCKER_REGISTRY}/strimzi/kafka-bridge:0.19.0
                                 minikube image load quay.io/strimzi/kafka-bridge:0.19.0
+
                                 docker pull strimzi/java-kafka-producer:latest
                                 docker tag strimzi/java-kafka-producer:latest quay.io/strimzi-examples/java-kafka-producer:latest
                                 minikube image load quay.io/strimzi-examples/java-kafka-producer:latest
+
                                 docker pull strimzi/java-kafka-consumer:latest
                                 docker tag strimzi/java-kafka-consumer:latest quay.io/strimzi-examples/java-kafka-consumer:latest
                                 minikube image load quay.io/strimzi-examples/java-kafka-consumer:latest
-                                #docker pull pverbist/postgresql-10-rhel7
-                                #docker tag pverbist/postgresql-10-rhel7 registry.access.redhat.com/rhscl/postgresql-10-rhel7:1
-                                #minikube image load registry.access.redhat.com/rhscl/postgresql-10-rhel7:1
+
                                 docker pull eu.gcr.io/vg1np-pf-phenix-caas-1a/3rdparty/registry.access.redhat.com/rhscl/postgresql-10-rhel7:1
                                 docker tag eu.gcr.io/vg1np-pf-phenix-caas-1a/3rdparty/registry.access.redhat.com/rhscl/postgresql-10-rhel7:1 registry.access.redhat.com/rhscl/postgresql-10-rhel7:1
                                 minikube image load registry.access.redhat.com/rhscl/postgresql-10-rhel7:1
