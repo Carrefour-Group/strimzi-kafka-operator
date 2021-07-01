@@ -60,7 +60,7 @@ pipeline {
                         println("PRNb= ${ghprbPullId}")
                     } else {
                         currentBuild.result = 'ABORTED'
-                        println("Not a PR, so nothing to do")
+                        error ("Not a PR, so nothing to do")
                         break
                     }
                 }
@@ -219,7 +219,6 @@ pipeline {
                                 #sed -i 's#quay.io/strimzi/#${env.DOCKER_REGISTRY}/strimzi/#g' ${env.WORKSPACE}/install/topic-operator/05-Deployment-strimzi-topic-operator.yaml
                                 #sed -i 's#quay.io/strimzi/#${env.DOCKER_REGISTRY}/strimzi/#g' ${env.WORKSPACE}/install/user-operator/05-Deployment-strimzi-user-operator.yaml
                                 #sed -i 's#quay.io/strimzi/#${env.DOCKER_REGISTRY}/strimzi/#g' ${env.WORKSPACE}/install/cluster-operator/060-Deployment-strimzi-cluster-operator.yaml
-                                
                                 sed -i 's#/opt/${env.DOCKER_REGISTRY}#/opt#g' ${env.WORKSPACE}/install/cluster-operator/060-Deployment-strimzi-cluster-operator.yaml
                             """)
                             println("[INFO] manual tag & load")
