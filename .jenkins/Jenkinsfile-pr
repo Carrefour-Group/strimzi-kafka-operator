@@ -3,11 +3,12 @@
 def lib
 // Currently the loadbalancer service is not working on minikube, same for network policies
 def DEFAULT_EXCLUDED_GROUPS = "loadbalancer,networkpolicies"
+ghprbPullId = ""
 
 pipeline {
     agent {
         node {
-            label "strimzi-pr"
+            label "staticslave"
         }
     }
     parameters {
@@ -15,6 +16,8 @@ pipeline {
         string(name: 'TEST_PROFILE', defaultValue: 'acceptance', description: 'maven parameter for executing specific test profile')
         string(name: 'EXCLUDE', defaultValue: "${DEFAULT_EXCLUDED_GROUPS}", description: 'maven parameter for exclude specific test tag')
         string(name: 'ENV_VARS', defaultValue: "", description: 'maven parameter for setting values of environment variables used in STs')
+        string(name: 'ghprbCommentBody', defaultValue: "", description: 'PR comment test')
+        //string(name: 'ghprbPullId', defaultValue: "7", description: 'PR ID')
     }
     options {
         timeout(time: 24, unit: 'HOURS')
@@ -31,6 +34,10 @@ pipeline {
         TEST_HELM2_VERSION = "v2.17.0"
         TEST_HELM3_VERSION = "v3.4.2"
         TEST_CLUSTER = "minikube"
+        TEST_NSENTER_VERSION = "2.37"
+        MVN_BIN = "./apache-maven-3.8.1/bin/mvn"
+        STRIMZI_MAILING_LIST = "samuel_cytarzynski@carrefour.com"
+        
     }
     stages {
         stage('Clean WS') {
@@ -43,9 +50,44 @@ pipeline {
                 checkout scm
             }
         }
+
+        stage('TEST PR NUMBER') {
+            steps {
+                script {
+                    if (env.BRANCH_NAME.startsWith('PR-')) {
+                        //ghprbPullId = env.BRANCH_NAME.replace(/^PR-/, '')
+                        ghprbPullId = (env.BRANCH_NAME.tokenize( '-' ))[1]
+                        println("PRNb= ${ghprbPullId}")
+                    } else {
+                        currentBuild.result = 'ABORTED'
+                        error ("Not a PR, so nothing to do")
+                        break
+                    }
+                }
+            }
+        }
+        
+        stage('load jenkins.groovy') {
+            steps {
+                script {
+                    lib = evaluate readFile('./.jenkins/jenkins.groovy')
+                }
+            }
+        }
+        stage('force install of java 11') {
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    script {
+                        lib = evaluate readFile('./.jenkins/jenkins.groovy')
+                        lib.removeDefaultJavaInstallJava11()
+                    }
+                }
+            }
+        }
         stage('Parse parameters from comment') {
             steps {
                 script {
+                    env.ghprbCommentBody = params.ghprbCommentBody
                     println("Comment body: ${env.ghprbCommentBody}")
                     env.TEST_CASE = params.TEST_CASE
                     env.TEST_PROFILE = params.TEST_PROFILE
@@ -110,7 +152,6 @@ pipeline {
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        lib = evaluate readFile('./.jenkins/jenkins.groovy')
                         lib.setupKubernetes()
                     }
                 }
@@ -134,13 +175,20 @@ pipeline {
                 }
             }
         }
+        stage('Install maven') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    script {
+                        lib.installMaven()
+                    }
+                }
+            }
+        }
         stage('Build project') {
             steps {
                 script {
-                    withMaven(mavenOpts: '-Djansi.force=true') {
-                        sh(script: "mvn clean install -DskipTests -Dstyle.color=always --no-transfer-progress")
-                        env.BUILD_PROJECT_STATUS = true
-                    }
+                    sh(script: "${MVN_BIN} clean install -Djansi.force=true -DskipTests -Dstyle.color=always")
+                    env.BUILD_PROJECT_STATUS = true
                 }
             }
         }
@@ -160,29 +208,55 @@ pipeline {
                 script {
                     catchError {
                         // For upgrade tests running with locally built images we need to change tag in StrimziUpgradeST.json
-                        if ("${env.TEST_PROFILE}".contains("upgrade")) {
+                        if ("${env.TEST_PROFILE}".contains("upgrade") || "${env.TEST_PROFILE}".contains("acceptance")) {
                             println("[INFO] Update files for upgrade procedure")
                             sh(script: """
                                 sed -i 's#:latest#:${env.DOCKER_TAG}#g' ${env.WORKSPACE}/systemtest/src/main/resources/StrimziUpgradeST.json ${env.WORKSPACE}/install/cluster-operator/060-Deployment-strimzi-cluster-operator.yaml
-                                sed -i 's#quay.io/strimzi/test-client:${env.DOCKER_TAG}#${env.DOCKER_REGISTRY}/strimzi/test-client:${env.DOCKER_TAG}#g' ${env.WORKSPACE}/systemtest/src/main/resources/StrimziUpgradeST.json
-                                sed -i 's#quay.io/strimzi/#${env.DOCKER_REGISTRY}/strimzi/#g' ${env.WORKSPACE}/install/cluster-operator/060-Deployment-strimzi-cluster-operator.yaml
                                 sed -i 's#/opt/${env.DOCKER_REGISTRY}#/opt#g' ${env.WORKSPACE}/install/cluster-operator/060-Deployment-strimzi-cluster-operator.yaml
+                            """)
+                            println("[INFO] manual tag & load")
+                            sh(script: """
+                                docker tag ${env.DOCKER_REGISTRY}/strimzi/test-client:pr-kafka-2.7.0 quay.io/strimzi/test-client:latest-kafka-2.7.0
+                                minikube image load quay.io/strimzi/test-client:latest-kafka-2.7.0
+
+                                docker pull strimzi/kafka-bridge:0.19.0
+                                docker tag strimzi/kafka-bridge:0.19.0 quay.io/strimzi/kafka-bridge:0.19.0
+                                docker tag strimzi/kafka-bridge:0.19.0 ${env.DOCKER_REGISTRY}/strimzi/kafka-bridge:0.19.0
+                                minikube image load ${env.DOCKER_REGISTRY}/strimzi/kafka-bridge:0.19.0
+                                minikube image load quay.io/strimzi/kafka-bridge:0.19.0
+
+                                docker pull strimzi/java-kafka-producer:latest
+                                docker tag strimzi/java-kafka-producer:latest quay.io/strimzi-examples/java-kafka-producer:latest
+                                minikube image load quay.io/strimzi-examples/java-kafka-producer:latest
+
+                                docker pull strimzi/java-kafka-consumer:latest
+                                docker tag strimzi/java-kafka-consumer:latest quay.io/strimzi-examples/java-kafka-consumer:latest
+                                minikube image load quay.io/strimzi-examples/java-kafka-consumer:latest
+
+                                docker pull eu.gcr.io/vg1np-pf-phenix-caas-1a/3rdparty/registry.access.redhat.com/rhscl/postgresql-10-rhel7:1
+                                docker tag eu.gcr.io/vg1np-pf-phenix-caas-1a/3rdparty/registry.access.redhat.com/rhscl/postgresql-10-rhel7:1 registry.access.redhat.com/rhscl/postgresql-10-rhel7:1
+                                minikube image load registry.access.redhat.com/rhscl/postgresql-10-rhel7:1
                             """)
                             sh(script: "cat ${env.WORKSPACE}/systemtest/src/main/resources/StrimziUpgradeST.json")
                             sh(script: "cat ${env.WORKSPACE}/install/cluster-operator/060-Deployment-strimzi-cluster-operator.yaml")
                         }
+
+                        //sh(script:" sleep 13600")
                         lib.runSystemTests(env.WORKSPACE, env.TEST_CASE, env.TEST_PROFILE, env.EXCLUDE_GROUPS)
                     }
                 }
             }
         }
     }
+
     post {
         always {
             script {
-                sh(script: "sudo ./systemtest/scripts/results_info.sh ./systemtest/target/failsafe-reports/ ${env.TEST_CASE} ${env.TEST_PROFILE} ${env.BUILD_NUMBER} ${env.KUBE_VERSION} ${env.TEST_ONLY} ${env.EXCLUDE_GROUPS} ${env.ENV_VARS}")
-                lib.postGithubPrComment("results.json")
-                lib.postAction(env.ARTIFACTS_DIR, env.ghprbPullId, env.ghprbActualCommitAuthor, env.ghprbPullTitle, env.ghprbPullLink, env.BUILD_URL, env.WORKSPACE, env.STRIMZI_MAILING_LIST)
+                if (env.BRANCH_NAME.startsWith('PR-')) {
+                    sh(script: "sudo ./systemtest/scripts/results_info.sh ./systemtest/target/failsafe-reports/ ${env.TEST_CASE} ${env.TEST_PROFILE} ${env.BUILD_NUMBER} ${env.KUBE_VERSION} ${env.TEST_ONLY} ${env.EXCLUDE_GROUPS} ${env.ENV_VARS}")
+                    lib.postGithubPrComment("results.json")
+                    lib.postAction(env.ARTIFACTS_DIR, env.ghprbPullId, env.ghprbActualCommitAuthor, env.ghprbPullTitle, env.ghprbPullLink, env.BUILD_URL, env.WORKSPACE, env.STRIMZI_MAILING_LIST)
+                }
             }
         }
         failure {
